@@ -1,6 +1,6 @@
 """Local dev server that disables browser caching, so edits show up on a normal refresh.
 
-Usage: python serve.py [port]   (default 5173; listens on localhost only)
+Usage: python serve.py [port]   (default: $PORT or 5173; listens on localhost only)
 """
 import functools
 import http.server
@@ -17,7 +17,7 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 5173
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", 5173))
     root = os.path.dirname(os.path.abspath(__file__))
     handler = functools.partial(NoCacheHandler, directory=root)
     with http.server.ThreadingHTTPServer(("127.0.0.1", port), handler) as httpd:

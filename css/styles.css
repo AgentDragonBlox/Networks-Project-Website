@@ -41,7 +41,11 @@
   --hair: rgba(16, 72, 128, 0.22);
   --shadow-lg: 0 30px 60px -30px rgba(10, 60, 120, 0.45);
   --shadow-md: 0 14px 30px -18px rgba(10, 60, 120, 0.4);
-  --gloss: inset 0 1px 0 rgba(255, 255, 255, 1);
+  /* liquid-glass rim: bright top edge, softer sides, a thick-glass inner glow */
+  --gloss: inset 0 1px 0 rgba(255, 255, 255, 1), inset 0 -1px 0 rgba(255, 255, 255, 0.35), inset 1px 0 0 rgba(255, 255, 255, 0.45), inset -1px 0 0 rgba(255, 255, 255, 0.3), inset 0 0 24px -10px rgba(255, 255, 255, 0.85);
+  --blur: blur(24px) saturate(185%) brightness(1.04);
+  --hl-color: rgba(255, 255, 255, 0.4);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 
   /* semantic */
   --ok: #0c9a52;
@@ -109,7 +113,9 @@
   --hair: rgba(150, 205, 255, 0.22);
   --shadow-lg: 0 30px 60px -30px rgba(0, 0, 0, 0.8);
   --shadow-md: 0 14px 30px -18px rgba(0, 0, 0, 0.7);
-  --gloss: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --gloss: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(255, 255, 255, 0.05), inset 1px 0 0 rgba(255, 255, 255, 0.08), inset -1px 0 0 rgba(255, 255, 255, 0.05), inset 0 0 24px -12px rgba(150, 210, 255, 0.35);
+  --blur: blur(24px) saturate(160%) brightness(0.92);
+  --hl-color: rgba(150, 215, 255, 0.16);
 
   --ok: #46de8c;
   --warn: #ffbf47;
@@ -216,46 +222,87 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 @media (prefers-reduced-motion: reduce) { .cloud { animation: none; } .bubbles { display: none; } }
 
 /* =====================================================================
-   GLASS — blurred surfaces (only top-level ones blur)
+   GLASS — blurred surfaces
    ===================================================================== */
-.topbar, .runner, .notice, .module, .spec, footer, .modmap {
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  backdrop-filter: blur(22px) saturate(180%);
+.dock-group, .runner, .notice, .module, .spec, footer, .modmap {
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
 }
 
 /* =====================================================================
-   TOP BAR — full-width hairline glass
+   DOCK — floating, split into function groups (brand · pages · actions).
+   Corners are concentric: group radius − inset = item radius.
    ===================================================================== */
 .topbar {
-  position: sticky; top: 14px; z-index: 50; display: flex; align-items: center; gap: 20px;
-  max-width: 1200px; height: 60px; margin: 14px auto 0; padding: 0 10px 0 14px;
-  border-radius: 18px; border: 1px solid var(--sheet-border);
-  background: linear-gradient(180deg, var(--sheet-hi), var(--sheet));
-  box-shadow: var(--shadow-lg), 0 2px 8px -4px rgba(10, 60, 120, 0.25), var(--gloss), inset 0 -1px 0 var(--line);
+  --dock-h: 58px; --dock-pad: 6px; --dock-r: 22px;
+  position: sticky; top: 14px; z-index: 50; display: flex; align-items: center; gap: 10px;
+  max-width: 1240px; margin: 14px auto 0; padding: 0 20px; pointer-events: none;
+  view-transition-name: dock;
 }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; color: var(--text); white-space: nowrap; letter-spacing: -0.02em; }
+.dock-group {
+  pointer-events: auto; display: flex; align-items: center; height: var(--dock-h); padding: 0 var(--dock-pad); border-radius: var(--dock-r);
+  border: 1px solid var(--sheet-border);
+  background: var(--grain), linear-gradient(180deg, var(--sheet-hi), var(--sheet));
+  box-shadow: var(--shadow-lg), 0 2px 8px -4px rgba(10, 60, 120, 0.25), var(--gloss);
+  transition: height 0.35s var(--ease), border-radius 0.35s var(--ease);
+}
+.brand { gap: 10px; padding-right: 16px; font-weight: 600; font-size: 15px; color: var(--text); white-space: nowrap; letter-spacing: -0.02em; }
 .brand:hover { text-decoration: none; }
 .brand small { color: var(--dim); font: 400 11px var(--mono); letter-spacing: 0; padding-left: 10px; border-left: 1px solid var(--hair); }
-.topnav { display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; margin-left: auto; }
+.topnav { gap: 2px; overflow-x: auto; scrollbar-width: none; margin-left: auto; min-width: 0; }
 .topnav::-webkit-scrollbar { display: none; }
 .topnav a {
-  position: relative; display: flex; align-items: center; height: 38px; padding: 0 13px; border-radius: 11px; border: 1px solid transparent;
-  color: var(--muted); font-size: 13.5px; font-weight: 500; white-space: nowrap; transition: color 0.2s, background 0.2s, border-color 0.2s;
+  position: relative; display: flex; align-items: center; flex: none; height: calc(var(--dock-h) - 2 * var(--dock-pad) - 2px); padding: 0 14px;
+  border-radius: calc(var(--dock-r) - var(--dock-pad)); border: 1px solid transparent;
+  color: var(--muted); font-size: 13.5px; font-weight: 500; white-space: nowrap;
+  transition: color 0.2s, background 0.2s, border-color 0.2s, height 0.35s var(--ease), border-radius 0.35s var(--ease);
 }
 .topnav a:hover { color: var(--text); text-decoration: none; background: var(--glass); }
 .topnav a.active {
-  color: var(--text); border-color: var(--sheet-border);
+  color: var(--text); border-color: var(--sheet-border); view-transition-name: nav-active;
   background: linear-gradient(180deg, var(--glass-hi), color-mix(in srgb, var(--c-trace) 12%, var(--glass)));
   box-shadow: var(--gloss), 0 4px 10px -6px rgba(10, 60, 120, 0.35);
 }
-.topnav a.active::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 14px; height: 2px; margin-left: -7px; border-radius: 2px; background: var(--c-trace); box-shadow: 0 0 6px var(--c-trace); }
+.topnav a.active::after { content: ""; position: absolute; left: 50%; bottom: 4px; width: 14px; height: 2px; margin-left: -7px; border-radius: 2px; background: var(--c-trace); box-shadow: 0 0 6px var(--c-trace); }
 .topnav a .n { font-family: var(--mono); color: var(--dim); font-size: 11px; margin-right: 7px; }
-.theme-toggle.frost { --sc: var(--c-trace); width: 40px; height: 40px; margin: 0; cursor: pointer; border-radius: 12px; padding: 0; }
-.theme-toggle.frost:hover { --tint: 26%; }
-.theme-toggle svg { width: 18px; height: 18px; }
+.dock-actions { gap: 6px; }
+.dock-icon.frost, .theme-toggle.frost {
+  --sc: var(--c-trace);
+  width: calc(var(--dock-h) - 2 * var(--dock-pad) - 2px); height: calc(var(--dock-h) - 2 * var(--dock-pad) - 2px);
+  margin: 0; padding: 0; cursor: pointer; border-radius: calc(var(--dock-r) - var(--dock-pad));
+  transition: height 0.35s var(--ease), width 0.35s var(--ease), border-radius 0.35s var(--ease);
+}
+.dock-icon.frost:hover, .theme-toggle.frost:hover { --tint: 26%; text-decoration: none; }
+.dock-icon svg, .theme-toggle svg { width: 18px; height: 18px; }
 .theme-toggle .moon { display: none; }
 :root[data-theme="dark"] .theme-toggle .sun-i { display: none; }
 :root[data-theme="dark"] .theme-toggle .moon { display: block; }
+
+/* compact dock while scrolling down; restored on scroll up */
+.dock-compact .topbar { --dock-h: 46px; --dock-pad: 4px; --dock-r: 18px; }
+.dock-compact .brand small, .dock-compact .topnav a .n { display: none; }
+
+/* scroll-edge effect: content blurs and fades as it passes under the dock */
+body::before {
+  content: ""; position: fixed; z-index: 40; inset: 0 0 auto 0; height: 104px; pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sky-1) 50%, transparent), transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(180deg, #000 35%, transparent); mask-image: linear-gradient(180deg, #000 35%, transparent);
+}
+
+/* =====================================================================
+   POINTER HIGHLIGHT — glass catches light where the pointer is
+   (positions set by app.js; hidden for touch and reduced motion)
+   ===================================================================== */
+.panel, .step, .stage, .pager-card, .spec, .chip, .btn.ghost, .dock-group, .notice, .rule, details.src { position: relative; }
+.panel::after, .step::after, .stage::after, .pager-card::after, .spec::after, .chip::after, .btn.ghost::after, .dock-group::after, .notice::after, .rule::after, details.src::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.35s;
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, -40%), var(--hl-color), transparent 70%);
+}
+.panel:hover::after, .step:hover::after, .stage:hover::after, .pager-card:hover::after, .spec:hover::after, .chip:hover::after, .btn.ghost:hover::after, .dock-group:hover::after, .notice:hover::after, .rule:hover::after, details.src:hover::after { opacity: 1; }
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .panel::after, .step::after, .stage::after, .pager-card::after, .spec::after, .chip::after, .btn.ghost::after, .dock-group::after, .notice::after, .rule::after, details.src::after { display: none; }
+}
 
 main { max-width: 1240px; margin: 0 auto; padding: 0 20px 80px; }
 
@@ -278,7 +325,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 0 20px 80px; }
 .runner {
   margin-top: 32px; max-width: 680px; display: flex; align-items: stretch; height: 52px;
   border: 1px solid var(--hair); border-radius: var(--r-lg); overflow: hidden;
-  background: linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--shadow-lg), var(--gloss);
+  background: var(--grain), linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--shadow-lg), var(--gloss);
 }
 .runner label { display: flex; align-items: center; padding: 0 14px; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); white-space: nowrap; border-right: 1px solid var(--line-2); }
 .runner .input { flex: 1 1 160px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 15px; padding: 0 14px; }
@@ -286,7 +333,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 0 20px 80px; }
 .runner .btn { --mod: var(--c-ping); border-radius: 0; border-width: 0 0 0 1px; height: auto; padding: 0 20px; }
 .hint { font-size: 13.5px; color: var(--muted); margin: 14px 0 0; max-width: 640px; }
 
-.spec { border: 1px solid var(--hair); border-radius: var(--r-xl); background: linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--shadow-lg), var(--gloss); overflow: hidden; }
+.spec { border: 1px solid var(--hair); border-radius: var(--r-xl); background: var(--grain), linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--shadow-lg), var(--gloss); overflow: hidden; }
 .spec-head { display: flex; justify-content: space-between; padding: 11px 16px; font-size: 11px; color: var(--dim); border-bottom: 1px solid var(--line-2); }
 .spec-head .mono { text-transform: none; letter-spacing: 0; }
 .spec dl { margin: 0; }
@@ -299,8 +346,8 @@ main { max-width: 1240px; margin: 0 auto; padding: 0 20px 80px; }
 .pipeline {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 64px;
   border: 1px solid var(--hair); border-radius: var(--r-xl); overflow: hidden;
-  background: linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--shadow-lg), var(--gloss);
-  -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%);
+  background: var(--grain), linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--shadow-lg), var(--gloss);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
 }
 .stage { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 22px 20px 18px; color: var(--text); border-left: 1px solid var(--line-2); transition: background 0.25s; }
 .stage:first-child { border-left: 0; }
@@ -363,7 +410,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 0 20px 80px; }
 
 .notice {
   display: flex; gap: 14px; margin-top: 16px; padding: 16px 20px; border: 1px solid var(--hair); border-radius: var(--r-lg);
-  background: linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--gloss); color: var(--muted); font-size: 14px;
+  background: var(--grain), linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--gloss); color: var(--muted); font-size: 14px;
 }
 .notice strong { color: var(--text); font-weight: 600; }
 .notice svg { flex: none; margin-top: 2px; color: var(--info); }
@@ -378,7 +425,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 0 20px 80px; }
    ===================================================================== */
 .module {
   position: relative; margin-top: 56px; padding: 48px 44px 44px; border-radius: var(--r-xl);
-  background: linear-gradient(180deg, var(--sheet-hi) 0%, var(--sheet) 260px);
+  background: var(--grain), linear-gradient(180deg, var(--sheet-hi) 0%, var(--sheet) 260px);
   border: 1px solid var(--sheet-border); box-shadow: var(--shadow-lg), var(--gloss);
 }
 .module::before, .module::after { content: ""; position: absolute; width: 22px; height: 22px; border-color: var(--mod); border-style: solid; pointer-events: none; }
@@ -445,10 +492,9 @@ textarea.input { resize: vertical; line-height: 1.5; font-size: 12.5px; }
 
 input[type="range"] { width: 100%; accent-color: var(--mod); height: 18px; }
 
-.seg { display: flex; width: 100%; border: 1px solid var(--field-border); border-radius: var(--r); overflow: hidden; background: var(--field); }
-.seg button { flex: 1; border: 0; background: none; padding: 8px; cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 500; transition: all 0.2s; }
-.seg button + button { border-left: 1px solid var(--field-border); }
-.seg button[aria-pressed="true"] { color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--mod) 60%, #fff), var(--mod) 52%, color-mix(in srgb, var(--mod) 82%, #00182f)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
+.seg { display: flex; gap: 3px; width: 100%; padding: 3px; border: 1px solid var(--field-border); border-radius: var(--r); background: var(--field); }
+.seg button { flex: 1; border: 1px solid transparent; border-radius: calc(var(--r) - 3px); background: none; padding: 6px 8px; cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 500; transition: all 0.2s; }
+.seg button[aria-pressed="true"] { color: var(--text); border-color: var(--sheet-border); background: linear-gradient(180deg, var(--glass-hi), color-mix(in srgb, var(--mod) 14%, var(--glass))); box-shadow: var(--gloss), 0 3px 8px -5px rgba(10, 60, 120, 0.4); }
 
 /* buttons — hard-edged with an Aero gloss band */
 .btn {
@@ -687,7 +733,7 @@ details.src .term { margin: 0 14px 14px; max-height: 420px; }
 footer {
   margin-top: 56px; padding: 18px 24px; border: 1px solid var(--hair); border-radius: var(--r-lg); color: var(--muted); font-size: 13px;
   display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between;
-  background: linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--gloss);
+  background: var(--grain), linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--gloss);
 }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -696,6 +742,7 @@ footer {
    RESPONSIVE
    ===================================================================== */
 @media (max-width: 1080px) {
+  .brand small { display: none; }
   .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 36px; }
   .spec { max-width: 560px; }
 }
@@ -711,7 +758,9 @@ footer {
 }
 @media (max-width: 760px) {
   main { padding: 0 12px 60px; }
-  .topbar { gap: 10px; top: 8px; margin: 8px 8px 0; padding: 0 8px 0 10px; border-radius: 16px; }
+  .topbar { --dock-h: 50px; --dock-pad: 5px; --dock-r: 19px; gap: 6px; top: 8px; margin-top: 8px; padding: 0 8px; }
+  .brand { font-size: 0; gap: 0; padding-right: var(--dock-pad); }
+  .topnav a { padding: 0 11px; }
   .brand small, .topnav a .n { display: none; }
   .hero { padding-top: 56px; }
   .runner { flex-wrap: wrap; height: auto; }
@@ -728,13 +777,12 @@ footer {
   .pipeline, .modmap { grid-template-columns: 1fr; }
   .stage, .modmap div { border-left: 0 !important; }
   .stage + .stage, .modmap div + div { border-top: 1px solid var(--line-2); }
-  .brand { font-size: 0; gap: 0; }
 }
 
 /* =====================================================================
    PAGER — previous / next module (module pages)
    ===================================================================== */
-.pager { display: grid; grid-template-columns: 1fr 1fr; margin-top: 20px; border: 1px solid var(--hair); border-radius: var(--r-xl); overflow: hidden; background: linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--shadow-md), var(--gloss); -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); }
+.pager { display: grid; grid-template-columns: 1fr 1fr; margin-top: 20px; border: 1px solid var(--hair); border-radius: var(--r-xl); overflow: hidden; background: var(--grain), linear-gradient(180deg, var(--sheet-hi), var(--sheet)); box-shadow: var(--shadow-md), var(--gloss); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
 .pager-card { display: flex; flex-direction: column; gap: 4px; padding: 20px 24px; color: var(--text); transition: background 0.2s; }
 .pager-card + .pager-card { border-left: 1px solid var(--line-2); }
 .pager-card.next { text-align: right; align-items: flex-end; }
@@ -745,4 +793,47 @@ footer {
 @media (max-width: 560px) {
   .pager { grid-template-columns: 1fr; }
   .pager-card + .pager-card { border-left: 0; border-top: 1px solid var(--line-2); }
+}
+
+/* =====================================================================
+   PAGE TRANSITIONS — the dock stays put and the active pill glides to
+   the new page's link (cross-document view transitions; Chromium).
+   ===================================================================== */
+@view-transition { navigation: auto; }
+::view-transition-group(nav-active) { animation-duration: 0.45s; animation-timing-function: var(--ease); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.25s; }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
+
+/* =====================================================================
+   SCROLL PERFORMANCE — pause the sky while scrolling so the glass
+   surfaces don't have to re-blur moving clouds every frame.
+   ===================================================================== */
+.is-scrolling .cloud, .is-scrolling .bubbles i { animation-play-state: paused; }
+
+/* =====================================================================
+   ACCESSIBILITY FALLBACKS
+   Reduce transparency / increase contrast: glass turns into solid,
+   clearly outlined surfaces and the background scene is toned down.
+   ===================================================================== */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root {
+    --sheet: #f4f9ff; --sheet-hi: #ffffff; --glass: #f7fbff; --glass-hi: #ffffff; --field: #ffffff;
+    --sheet-border: rgba(16, 72, 128, 0.35); --glass-border: rgba(16, 72, 128, 0.3); --hair: rgba(16, 72, 128, 0.4);
+    --line-2: rgba(16, 72, 128, 0.3); --grain: none; --blur: none;
+  }
+  :root[data-theme="dark"] {
+    --sheet: #0a1d33; --sheet-hi: #0f2742; --glass: #0c2139; --glass-hi: #112c4b; --field: #061629;
+    --sheet-border: rgba(170, 215, 255, 0.4); --glass-border: rgba(170, 215, 255, 0.32); --hair: rgba(170, 215, 255, 0.45);
+    --line-2: rgba(170, 215, 255, 0.3);
+  }
+  *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .orb, .frost { background: color-mix(in srgb, var(--sc, var(--mod)) var(--tint), var(--sheet-hi)); }
+  .bubbles, .scene .flare, .scene .swoosh { display: none; }
+  body::before { display: none; }
+}
+@media (prefers-contrast: more) {
+  :root { --muted: #1f3d5c; --dim: #34557a; }
+  :root[data-theme="dark"] { --muted: #cfe2f5; --dim: #a9c3dd; }
 }

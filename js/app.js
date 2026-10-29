@@ -28,6 +28,47 @@
     if (!saved) setTheme(e.matches ? "dark" : "light", false);
   });
 
+  // Dock shrinks while scrolling down and returns on scroll up; the sky pauses during scrolling.
+  let lastY = window.scrollY;
+  let scrollTimer = null;
+  window.addEventListener(
+    "scroll",
+    () => {
+      const y = window.scrollY;
+      if (Math.abs(y - lastY) > 6) {
+        root.classList.toggle("dock-compact", y > lastY && y > 140);
+        lastY = y;
+      }
+      root.classList.add("is-scrolling");
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => root.classList.remove("is-scrolling"), 160);
+    },
+    { passive: true }
+  );
+
+  // Glass catches light under the pointer: feed the cursor position to the surfaces it is over.
+  const GLASS = ".panel, .step, .stage, .pager-card, .spec, .chip, .btn.ghost, .dock-group, .notice, .rule, details.src";
+  if (window.matchMedia("(hover: hover)").matches && !NP.reducedMotion) {
+    let frame = 0;
+    let e = null;
+    document.addEventListener(
+      "pointermove",
+      (ev) => {
+        e = ev;
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          for (let el = e.target.closest && e.target.closest(GLASS); el; el = el.parentElement && el.parentElement.closest(GLASS)) {
+            const r = el.getBoundingClientRect();
+            el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+            el.style.setProperty("--my", `${e.clientY - r.top}px`);
+          }
+        });
+      },
+      { passive: true }
+    );
+  }
+
   // ---- overview pipeline (index.html only) ----
   if (!$("#pipe-run")) return;
 

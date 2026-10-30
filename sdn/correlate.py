@@ -192,6 +192,14 @@ def render(a):
     return "\n".join(out)
 
 
+def slim(a):
+    """The analysis without the full topology snapshots, for report.json and the website."""
+    out = {k: v for k, v in a.items() if k not in ("topology", "final_topology")}
+    out["runs"] = [{k: v for k, v in r.items() if k != "topology"} for r in a["runs"]]
+    out["alternatives"] = a["topology"].get("alternatives", {})
+    return out
+
+
 def main(argv=None):
     argv = argv if argv is not None else sys.argv[1:]
     if len(argv) != 1:
@@ -203,10 +211,8 @@ def main(argv=None):
     print(text)
     with open(os.path.join(folder, "report.txt"), "w") as fh:
         fh.write(text + "\n")
-    slim = {k: v for k, v in a.items() if k not in ("topology", "final_topology")}
-    slim["runs"] = [{k: v for k, v in r.items() if k != "topology"} for r in a["runs"]]
     with open(os.path.join(folder, "report.json"), "w") as fh:
-        json.dump(slim, fh, indent=2)
+        json.dump(slim(a), fh, indent=2)
     return 0
 
 

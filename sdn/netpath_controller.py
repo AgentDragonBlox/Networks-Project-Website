@@ -36,6 +36,7 @@ alternative paths. Options (all optional):
 import json
 import os
 import time
+from collections import deque
 
 import pox.openflow.libopenflow_01 as of
 from pox.core import core
@@ -69,6 +70,8 @@ class NetPathController(object):
         self.active = {}  # (src_mac, dst_mac) -> {"path": [...], "policy": str, "since": t}
         self.failed_links = []  # [{"link": "s2-s4", "at": t, "reason": str}]
         self.failed_paths = []  # [{"conversation": ..., "path": [...], "link": ..., "at": t}]
+        self.events = deque(maxlen=60)  # recent decisions, shown on the website
+        self.counters = {"packet_in": 0, "flow_mod": 0, "flood": 0, "drop": 0, "reroute": 0}
 
         self.firewall_on = os.path.exists(flag_path)
         self.policy_text = self._read_policy()
@@ -78,19 +81,24 @@ class NetPathController(object):
         core.openflow_discovery.addListenerByName("LinkEvent", self._handle_LinkEvent)
         Timer(1, self._poll_files, recurring=True)
         Timer(2, self._export, recurring=True)
-        log.info("NetPath controller ready, policy '%s', firewall %s on s%s for %s",
-                 self.policy_text, "ON" if self.firewall_on else "off", firewall_dpid, ", ".join(protected))
+        self._event("info", "start", "controller ready, policy '%s', firewall %s on s%s for %s" % (
+            self.policy_text, "ON" if self.firewall_on else "off", firewall_dpid, ", ".join(protected)))
+
+    def _event(self, level, kind, text):
+        """Log a decision and keep it for the topology export."""
+        (log.warning if level == "warn" else log.info)(text)
+        self.events.append({"t": time.time(), "kind": kind, "text": text})
 
     # ------------------------------------------------------------ topology discovery
 
     def _handle_ConnectionUp(self, event):
         self.switches[event.dpid] = event.connection
-        log.info("switch %s connected", sname(event.dpid))
+        self._event("info", "switch", "switch %s connected" % sname(event.dpid))
 
     def _handle_ConnectionDown(self, event):
         self.switches.pop(event.dpid, None)
         self.links = {l for l in self.links if event.dpid not in (l[0], l[2])}
-        log.warning("switch %s disconnected", sname(event.dpid))
+        self._event("warn", "switch", "switch %s disconnected" % sname(event.dpid))
         self._reroute_all("switch %s down" % sname(event.dpid))
 
     def _handle_LinkEvent(self, event):
@@ -102,7 +110,7 @@ class NetPathController(object):
             for mac, h in list(self.hosts.items()):
                 if (h["dpid"], h["port"]) in ((l.dpid1, l.port1), (l.dpid2, l.port2)):
                     del self.hosts[mac]
-            log.info("link up %s-%s", sname(l.dpid1), sname(l.dpid2))
+            self._event("info", "link", "LLDP: link up %s-%s" % (sname(l.dpid1), sname(l.dpid2)))
             self._reroute_all("link %s-%s up" % (sname(l.dpid1), sname(l.dpid2)))
         elif event.removed and key in self.links:
             self._link_failed(key, "LLDP timeout")
@@ -123,7 +131,7 @@ class NetPathController(object):
             if uses_link(info["path"], key[0], key[2]):
                 self.failed_paths.append({"conversation": self._conv_name(conv), "path": [sname(d) for d in info["path"]],
                                           "link": name, "at": now})
-        log.warning("link FAILED %s (%s)", name, reason)
+        self._event("warn", "failure", "link FAILED %s (%s)" % (name, reason))
         self._reroute_all("link %s failed" % name)
 
     # ------------------------------------------------------------ forwarding
@@ -132,6 +140,7 @@ class NetPathController(object):
         packet = event.parsed
         if not packet.parsed or packet.type == LLDP_TYPE:
             return
+        self.counters["packet_in"] += 1
         dpid, in_port = event.dpid, event.port
         edge = core.openflow_discovery.is_edge_port(dpid, in_port)
 
@@ -145,7 +154,8 @@ class NetPathController(object):
         ip = packet.find("ipv4")
         if ip is not None and self._blocked(dpid, ip.dstip):
             self._send_flow(event.connection, of.ofp_match.from_packet(packet, in_port), [], event.ofp)
-            log.warning("%s DROP %s -> %s (firewall on)", sname(dpid), ip.srcip, ip.dstip)
+            self.counters["drop"] += 1
+            self._event("warn", "firewall", "%s drop rule: %s -> %s (firewall on)" % (sname(dpid), ip.srcip, ip.dstip))
             return
 
         dst = self.hosts.get(packet.dst)
@@ -159,7 +169,7 @@ class NetPathController(object):
         candidates = candidate_paths(self.links, dpid, dst["dpid"])
         path = choose_path(candidates, self.policy)
         if path is None:
-            log.warning("no path %s -> %s for %s", sname(dpid), sname(dst["dpid"]), packet.dst)
+            self._event("warn", "warn", "no path %s -> %s for %s" % (sname(dpid), sname(dst["dpid"]), packet.dst))
             return
 
         hops = ports_along(self.links, path, dst["port"])
@@ -173,7 +183,8 @@ class NetPathController(object):
 
         conv = (packet.src, packet.dst)
         if self.active.get(conv, {}).get("path") != path:
-            log.info("path %s: %s  (policy %s)", self._conv_name(conv), " -> ".join(sname(d) for d in path), self.policy_text)
+            self._event("info", "path", "path %s: %s (policy %s)" % (
+                self._conv_name(conv), " -> ".join(sname(d) for d in path), self.policy_text))
         self.active[conv] = {"path": path, "policy": self.policy_text, "since": time.time()}
 
     def _send_flow(self, connection, match, actions, data=None):
@@ -182,11 +193,13 @@ class NetPathController(object):
         msg.idle_timeout = IDLE_TIMEOUT
         msg.hard_timeout = HARD_TIMEOUT
         msg.actions = actions  # no actions = drop
+        self.counters["flow_mod"] += 1
         if data is not None:
             msg.data = data  # also release the packet that triggered this rule
         connection.send(msg)
 
     def _flood(self, event):
+        self.counters["flood"] += 1
         msg = of.ofp_packet_out()
         msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
         msg.data = event.ofp
@@ -201,7 +214,8 @@ class NetPathController(object):
         for conn in self.switches.values():
             conn.send(of.ofp_flow_mod(command=of.OFPFC_DELETE))
         self.active.clear()
-        log.info("flows cleared (%s)", why)
+        self.counters["reroute"] += 1
+        self._event("info", "reroute", "flow tables cleared (%s)" % why)
         self._export()
 
     # ------------------------------------------------------------ live controls
@@ -217,12 +231,12 @@ class NetPathController(object):
         on = os.path.exists(self.flag_path)
         if on != self.firewall_on:
             self.firewall_on = on
-            log.warning("firewall turned %s", "ON" if on else "off")
+            self._event("warn", "firewall", "firewall turned %s" % ("ON" if on else "off"))
             self._reroute_all("firewall changed")
         text = self._read_policy()
         if text != self.policy_text:
             self.policy_text, self.policy = text, parse_policy(text)
-            log.warning("route policy now '%s'", text)
+            self._event("warn", "policy", "route policy now '%s'" % text)
             self._reroute_all("route policy changed")
 
     # ------------------------------------------------------------ export
@@ -255,6 +269,8 @@ class NetPathController(object):
             "alternatives": alternatives,
             "failed_links": self.failed_links,
             "failed_paths": self.failed_paths,
+            "counters": self.counters,
+            "events": list(self.events),
         }
         tmp = self.export_path + ".tmp"
         try:

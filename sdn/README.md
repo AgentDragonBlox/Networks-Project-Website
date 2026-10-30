@@ -48,7 +48,7 @@ OpenFlow switches work at layer 2 and never decrement the TTL, so a traceroute t
 | `netprobe.py` | The socket-based UDP application: `server`, `probe`, `trace` |
 | `netpath_controller.py` | POX component: topology discovery, path routing, route policy, failover, firewall, topology export |
 | `netpath_graph.py` | Path logic used by the controller (copy it into `pox/ext/` too) |
-| `multipath.py` | Multipath Mininet lab; `--auto` runs the whole experiment |
+| `multipath.py` | Multipath Mininet lab; `--auto` runs the whole experiment, `--serve` lets the website drive it |
 | `topology.py` | Routed Mininet lab for traceroute and path analysis |
 | `correlate.py` | Joins measurements with the controller's topology and writes the report |
 | `tests/` | 20 tests that run anywhere: `python3 -m unittest discover -s tests` |
@@ -117,7 +117,36 @@ h1 python3 netprobe.py probe 10.0.0.2
 link s2 s4 down                      # Mininet CLI: fail a link
 ```
 
-## 4. Run the routed lab (traceroute and path analysis)
+## 4. Drive the lab from the website
+
+The website's **SDN Lab** page (`sdn.html`) shows the controller's view live and drives the lab. With POX running (step 2):
+
+```bash
+cd <this repo>/sdn && sudo python3 multipath.py --serve     # terminal 2
+cd <this repo> && python3 serve.py                          # terminal 3
+```
+
+Open <http://localhost:5173/sdn.html>. The page shows:
+
+- the topology POX discovered, with the active path, failed links and the OpenFlow counters (packet-in, flow-mod, flood, drop, reroute)
+- the controller's event log
+
+From the page you can:
+
+- switch the route policy
+- turn the firewall on and off
+- take links down and bring them back
+- send UDP probes from h1
+- compare all paths
+- run the failure test
+
+Every measurement is shown next to the path POX used for it.
+
+- `multipath.py --serve` waits for discovery, pings once, starts the echo server on h2 and listens on `127.0.0.1:8765`. It replaces the Mininet CLI; Ctrl+C stops the lab.
+- `serve.py` reads `/tmp/netpath_topology.json` and forwards the page's actions to port 8765. Nothing listens beyond localhost.
+- Without the lab, the page falls back to a clearly labelled example mode.
+
+## 5. Run the routed lab (traceroute and path analysis)
 
 ```bash
 cd <this repo>/sdn && sudo python3 topology.py --auto
@@ -136,7 +165,7 @@ The outputs are saved in `results/`. Expect hops r1, r2, r3 and h2, a jump of ab
 ## Talking points
 
 - **Control and data plane split:** the switches only forward. POX makes every decision and installs OpenFlow rules (packet-in → flow-mod).
-- **The app sees what the network does:** the same UDP probe measures about 12 ms on path A, about 84 ms on path B and about 10% loss on path C. Correlation attributes the difference to exactly the links that path does not share.
+- **The app sees what the network does:** the same UDP probe measures about 12 ms on path A, about 84 ms on path B, and about 19% loss on path C (10% in each direction). Correlation attributes the difference to exactly the links that path does not share.
 - **Failure handling:** a link goes down, the controller detects it, marks the paths that used it as failed and reroutes. The app measures how long traffic was interrupted.
 - **Why routers in the routed lab:** switches don't decrement TTL, so they are invisible to traceroute.
 

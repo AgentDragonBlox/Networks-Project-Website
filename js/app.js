@@ -7,6 +7,7 @@
   if ($("#ping-run")) NP.ping.init();
   if ($("#tr-run")) NP.trace.init();
   if ($("#an-input")) NP.analysis.init();
+  if ($("#sdn-topo")) NP.sdn.init();
 
   // Light / dark toggle (initial theme is set by the inline script in <head>).
   const root = document.documentElement;

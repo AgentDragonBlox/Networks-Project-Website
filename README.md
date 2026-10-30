@@ -61,6 +61,10 @@ serve.py           no-cache local dev server
 
 When you change a CSS or JS file, bump the `?v=` number on its `<link>`/`<script>` tags in the HTML pages. This makes browsers that cached the old file download the new one.
 
+## SDN lab (Mininet + POX)
+
+[`sdn/`](sdn/README.md) builds a software-defined test network: Mininet hosts, routers and OpenFlow switches, with a POX controller (learning switch plus a firewall you can switch on and off). It plants a +60 ms link and a lossy link so the real traceroute and path analysis can be shown finding them. It needs Linux; the README covers running it in an Ubuntu VM on a Mac.
+
 ## Credits
 
 The diagnostics tool and its Python code come from [AtharvChoudhary65/network-diagnostics-and-path-analysis-tool](https://github.com/AtharvChoudhary65/network-diagnostics-and-path-analysis-tool). This site is an interactive companion to it. Fonts are [Geist and Geist Mono](https://vercel.com/font), loaded from Google Fonts.

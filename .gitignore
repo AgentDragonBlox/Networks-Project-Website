@@ -11,3 +11,6 @@ desktop.ini
 # Python
 __pycache__/
 *.pyc
+
+# SDN lab output (generated inside the Mininet VM)
+sdn/results/

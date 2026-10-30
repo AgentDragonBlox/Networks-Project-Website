@@ -85,12 +85,19 @@ def add_routes(net):
 
 
 def run_tool(net, tool_dir, results_dir):
-    """Run plain traceroute and then our path analysis from h1 to h2, saving both outputs."""
+    """From h1 to h2: our socket-based UDP traceroute and probe, then the system traceroute
+    and the project's path analysis for comparison. Every output is saved."""
     os.makedirs(results_dir, exist_ok=True)
-    h1 = net["h1"]
+    h1, h2 = net["h1"], net["h2"]
+    netprobe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "netprobe.py")
+    h2.cmd(f"python3 '{netprobe}' server > /tmp/netprobe_server.log 2>&1 &")
     steps = [
+        ("netprobe_trace.txt",
+         f"python3 '{netprobe}' trace {H2_IP} --tool '{tool_dir}' --json '{results_dir}/netprobe_trace.json'"),
+        ("netprobe_probe.txt",
+         f"python3 '{netprobe}' probe {H2_IP} --count 100 --interval 0.02 --json '{results_dir}/netprobe_probe.json'"),
         ("traceroute.txt", f"traceroute -n -q 3 -w 2 {H2_IP}"),
-        ("path_analysis.txt", f"cd {tool_dir} && python3 -m path_analysis {H2_IP}"),
+        ("path_analysis.txt", f"cd '{tool_dir}' && python3 -m path_analysis {H2_IP}"),
     ]
     for filename, command in steps:
         info(f"\n*** h1$ {command}\n")

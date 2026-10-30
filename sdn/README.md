@@ -1,143 +1,150 @@
-# NetPath SDN lab: Mininet + POX
+# NetPath SDN lab: Mininet + POX + UDP probes
 
-A software-defined network for testing our traceroute and path analysis on a network where **we control everything**. Mininet builds the virtual network, POX is the SDN controller that decides how every switch forwards traffic, and our Python tool runs inside it to find the problems we planted on purpose.
+A socket-based network diagnostic application that measures delay, packet loss and path characteristics with its own UDP probes, and correlates the results with the topology of a software-defined network.
+
+- **Mininet** builds the network.
+- **POX** is the SDN controller: it discovers the topology and decides which path traffic takes.
+- **netprobe** measures the network over UDP sockets.
+- **correlate** joins the measurements with the controller's view of the network.
+
+## Deliverables
+
+| Deliverable | Where | How |
+|---|---|---|
+| Socket-based application, UDP | `netprobe.py` | Built on the socket API: `SOCK_DGRAM` for probes, `SOCK_RAW` for ICMP replies. No ping or traceroute programs involved |
+| Implement UDP diagnostic probes | `netprobe.py probe` / `server` | Numbered, timestamped UDP datagrams echoed by a UDP server |
+| Measure round-trip time | `netprobe.py probe` | Per-probe RTT, plus min/avg/max/stdev and RFC 3550-style jitter |
+| Detect packet loss | `netprobe.py probe` | Loss %, exactly which probes were lost, reordering, duplicates |
+| Implement path analysis | `netprobe.py trace` + the project's `path_analysis` | UDP traceroute on sockets (TTL 1, 2, 3 …, ICMP time exceeded / port unreachable). Hops go to `analyze_path()` for jitter, loss and latency jumps |
+| Discover SDN topology | `netpath_controller.py` | Switches from OpenFlow connections, links over LLDP (`openflow.discovery`), hosts from where their traffic enters. Exported to `/tmp/netpath_topology.json` |
+| Correlate measurements with network paths | `correlate.py` | Joins each probe run with the switch path the controller used, and attributes extra delay or loss to the links that differ from the best path |
+| Identify failed paths | controller + `correlate.py` | Port-down and LLDP-timeout detection, a record of which active paths used the failed link, automatic rerouting, and the measured outage length |
+| Compare alternative paths | `multipath.py` + `correlate.py` | Three paths (fast, slow, lossy), each forced in turn with a live route policy, measured and ranked |
+
+## The two labs
+
+**Multipath lab, `multipath.py`:** path comparison, failure and correlation.
 
 ```
-h1 ─ s1 ─ r1 ─ s2 ─ r2 ─ s3 ─ r3 ─ s4 ─ h2
-                         ▲           ▲
-          long-haul: +60 ms RTT    last mile: ~15% loss each way
+                ┌─ s2 ─┐   path A: fast (2 ms links)
+    h1 ── s1 ───┼─ s3 ─┼─── s4 ── h2      path B: slow (20 ms links)
+                └─ s5 ─┘   path C: fast, but s5–s4 drops 10% of packets
 ```
 
-| Node | Role |
-|------|------|
-| `h1` 10.0.1.2 | Client: runs traceroute and path analysis |
-| `h2` 10.0.4.2 | Server: the destination |
-| `r1`, `r2`, `r3` | Routers (Linux hosts with IP forwarding). Each one is a traceroute hop |
-| `s1`–`s4` | OpenFlow switches with no logic of their own. POX decides everything |
+`h1` is 10.0.0.1, `h2` is 10.0.0.2. All five switches are OpenFlow switches run by POX.
 
-**Why routers?** OpenFlow switches work at layer 2 and never decrement the TTL, so a chain of switches is invisible to traceroute: it would show the whole path as one hop. The routers between the switches give traceroute real hops to discover.
+**Routed lab, `topology.py`:** hop-by-hop path analysis.
+
+```
+h1 ─ s1 ─ r1 ─ s2 ─ r2 ─ s3 ─ r3 ─ s4 ─ h2       +60 ms RTT on s3–r3, loss on s4–h2
+```
+
+OpenFlow switches work at layer 2 and never decrement the TTL, so a traceroute through switches alone shows a single hop. The Linux routers r1–r3 give traceroute real hops, which is what per-hop path analysis needs.
 
 ## Files
 
 | File | What it is |
 |------|-----------|
-| `topology.py` | The Mininet network: hosts, routers, switches, the delay and loss, the routes |
-| `netpath_controller.py` | The POX component: learning switch, live firewall switch, flow logging |
-| `results/` | Created by `--auto`: the traceroute and path-analysis output |
+| `netprobe.py` | The socket-based UDP application: `server`, `probe`, `trace` |
+| `netpath_controller.py` | POX component: topology discovery, path routing, route policy, failover, firewall, topology export |
+| `netpath_graph.py` | Path logic used by the controller (copy it into `pox/ext/` too) |
+| `multipath.py` | Multipath Mininet lab; `--auto` runs the whole experiment |
+| `topology.py` | Routed Mininet lab for traceroute and path analysis |
+| `correlate.py` | Joins measurements with the controller's topology and writes the report |
+| `tests/` | 20 tests that run anywhere: `python3 -m unittest discover -s tests` |
 
-## 1. Set up a Linux VM on the Mac (about 15 minutes, once)
+## 1. Setup
 
-Mininet needs Linux. Multipass gives you an Ubuntu VM with a few commands and works on both Apple Silicon (M1–M4) and Intel Macs. The official Mininet VM image is Intel-only, so skip it on Apple Silicon.
+You need **Linux**: Mininet uses Linux network namespaces, Open vSwitch and `tc`. On a Linux machine (Ubuntu or Debian):
+
+```bash
+sudo apt update && sudo apt install -y mininet openvswitch-switch traceroute git
+cd ~ && git clone https://github.com/noxrepo/pox
+git clone https://github.com/AtharvChoudhary65/network-diagnostics-and-path-analysis-tool
+cp <this repo>/sdn/netpath_controller.py <this repo>/sdn/netpath_graph.py ~/pox/ext/
+```
+
+POX's default branch runs on Python 3. Nothing else needs installing: the lab only uses Python's standard library.
+
+**On a Mac**, run the same steps inside an Ubuntu VM. Multipass works on Apple Silicon and Intel:
 
 ```bash
 brew install --cask multipass
 multipass launch 22.04 --name sdn --cpus 2 --memory 4G --disk 15G
+multipass transfer --recursive sdn sdn:/home/ubuntu/
 multipass shell sdn
 ```
 
-Inside the VM:
+## 2. Start the controller (terminal 1, always first)
 
 ```bash
-sudo apt update
-sudo apt install -y mininet openvswitch-switch traceroute git python3-pip
-git clone https://github.com/noxrepo/pox
-git clone https://github.com/AtharvChoudhary65/network-diagnostics-and-path-analysis-tool
-pip3 install dnspython
+cd ~/pox && ./pox.py log.level --INFO openflow.discovery openflow.spanning_tree --no-flood --hold-down netpath_controller
 ```
 
-Copy this `sdn/` folder into the VM. From a Mac terminal, in this repository:
+- `openflow.discovery` finds the links (LLDP).
+- `openflow.spanning_tree` keeps ARP broadcasts from looping around the multipath triangle.
+
+You'll see `switch s1 connected` …, `link up s1-s2` …, and `path 10.0.0.1->10.0.0.2: s1 -> s2 -> s4`.
+
+## 3. Run the multipath experiment (terminal 2)
 
 ```bash
-multipass transfer --recursive sdn sdn:/home/ubuntu/
+cd <this repo>/sdn && sudo python3 multipath.py --auto
 ```
 
-Then install the controller component into POX:
+It takes about 1.5 minutes:
+
+1. Waits for the controller to discover the topology, then pings once so the controller learns where the hosts are.
+2. Starts the UDP echo server on h2.
+3. Measures with 60 UDP probes each:
+   - the **auto** route
+   - **path A** (`via 2`)
+   - **path B** (`via 3`)
+   - **path C** (`via 5`)
+
+   The route is switched live by writing to `/tmp/netpath_route`.
+4. **Failure test:** probes for 15 s on the auto path and takes link s2–s4 down after 4 s. The controller detects the failure, records the failed path and reroutes.
+5. Runs `correlate.py` and prints the report, also saved to `results/report.txt` and `results/report.json`.
+
+The report has five sections: the discovered topology and the alternative paths, measurements per path, which links explain the differences, failed paths and the outage length, and the recommended path.
+
+The routes can also be changed by hand while the CLI is open:
 
 ```bash
-cp ~/sdn/netpath_controller.py ~/pox/ext/
+echo "via 3" > /tmp/netpath_route    # force path B; also: auto, via 2, via 5, path 1 5 4
+h2 python3 netprobe.py server &      # in the Mininet CLI
+h1 python3 netprobe.py probe 10.0.0.2
+link s2 s4 down                      # Mininet CLI: fail a link
 ```
 
-## 2. Run it
-
-You need **two terminals** in the VM. Open the second one with `multipass shell sdn` from another Mac terminal.
-
-**Terminal 1, the controller (start it first):**
+## 4. Run the routed lab (traceroute and path analysis)
 
 ```bash
-cd ~/pox && ./pox.py log.level --INFO netpath_controller
+cd <this repo>/sdn && sudo python3 topology.py --auto
 ```
 
-Wait for `switch s1 connected` … `s4 connected` once the network starts.
+From h1 to h2 it runs, in order:
+1. our **socket-based UDP traceroute** (`netprobe.py trace`), with the hops handed to the project's `path_analysis`
+2. a UDP probe run
+3. the system `traceroute`
+4. the project's `python3 -m path_analysis`, for comparison
 
-**Terminal 2, the network:**
+The outputs are saved in `results/`. Expect hops r1, r2, r3 and h2, a jump of about 60 ms at hop 3, and partial loss at h2.
 
-```bash
-cd ~/sdn && sudo python3 topology.py --auto
-```
+**SDN firewall:** run `touch /tmp/netpath_firewall`, and switch s4 drops traffic to the protected hosts. Traceroute then stops after r3. Remove the file to undo it.
 
-`--auto` runs a plain traceroute and then our path analysis from `h1` to `h2`, prints both, saves them to `results/`, and opens the Mininet CLI. Leave out `--auto` to go straight to the CLI. Useful CLI commands:
+## Talking points
 
-```
-h1 traceroute -n h2
-h1 ping -c 4 h2
-h1 cd ~/network-diagnostics-and-path-analysis-tool && python3 -m path_analysis 10.0.4.2
-pingall
-exit
-```
-
-## 3. The demo (about 3 minutes)
-
-**a. Normal path: the tool finds both planted problems.**
-
-Run `--auto` or the commands above. What you should see (exact numbers vary from run to run):
-
-- traceroute shows four hops: `10.0.1.1` (r1), `10.0.2.2` (r2), `10.0.3.2` (r3), `10.0.4.2` (h2).
-- Hop 3 is about **60 ms slower** than hop 2: the long-haul link. Path analysis flags it, because the jump is over `jump_ms = 50`.
-- Hop 4 (`h2`) usually loses some probes. With 15% loss each way, roughly 1 probe in 4 goes missing. When it is 20% or more, path analysis flags it as partial loss. Three probes is a small sample, so run it twice, or use `traceroute -n -q 10 h2` to show the loss more clearly.
-
-**b. SDN firewall: block the destination with a flow rule.**
-
-In a third VM shell, or in the Mininet CLI with `sh`:
-
-```bash
-touch /tmp/netpath_firewall
-```
-
-Terminal 1 logs `firewall turned ON`. Every switch's flow table is cleared, and from now on `s4` installs **drop rules** for traffic to `h2`. Run `h1 traceroute -n h2` again: r1, r2 and r3 still answer, then `* * *` until 30 hops, and path analysis reports **destination reached: no**. This is the website's "destination behind firewall" scenario, but real, and done by the SDN controller.
-
-**c. Turn it off.**
-
-```bash
-rm /tmp/netpath_firewall
-```
-
-The flows are cleared again and the destination answers on the next run.
-
-**Show the website too:** open `traceroute.html`, paste `results/traceroute.txt` into the **Parser playground**, and the same hops are parsed and colour-coded. Then use **Analyze this path**.
-
-## How this covers the SDN topics
-
-| SDN idea | Where it happens here |
-|----------|----------------------|
-| Separate control plane and data plane | Switches only forward. POX (`netpath_controller.py`) makes every decision |
-| OpenFlow | Switches run OpenFlow 1.0. POX receives **packet-in** events and replies with **flow-mod** rules and **packet-out** messages |
-| Flow tables | Learned flows expire after 10 s idle or 30 s total. The firewall change deletes them all (`OFPFC_DELETE`) |
-| Policy by software | The firewall is a flow rule with no actions (drop), switched on and off without touching the network |
-| Network emulation | Mininet's `TCLink` adds the delay and loss, so the problems are known in advance and the tool can be checked against them |
-
-## Tuning
-
-```bash
-sudo python3 topology.py --delay 80 --loss 25   # bigger jump, more loss
-sudo python3 topology.py --tool /path/to/tool   # if the tool repo is somewhere else
-```
-
-POX options: `./pox.py netpath_controller --firewall_switch=4 --protected=10.0.4.2 --flag=/tmp/netpath_firewall`
+- **Control and data plane split:** the switches only forward. POX makes every decision and installs OpenFlow rules (packet-in → flow-mod).
+- **The app sees what the network does:** the same UDP probe measures about 12 ms on path A, about 84 ms on path B and about 10% loss on path C. Correlation attributes the difference to exactly the links that path does not share.
+- **Failure handling:** a link goes down, the controller detects it, marks the paths that used it as failed and reroutes. The app measures how long traffic was interrupted.
+- **Why routers in the routed lab:** switches don't decrement TTL, so they are invisible to traceroute.
 
 ## Troubleshooting
 
-- **`Unable to contact the remote controller`**: start POX first (terminal 1), then the topology.
-- **Leftovers after a crash**: `sudo mn -c`
-- **POX fails with Python errors**: some POX branches need an older Python. In `~/pox` run `git branch -a` and `git checkout` the newest branch listed, then try again.
-- **traceroute shows only one hop**: the routes did not install. In the CLI, `r1 ip route` should list `10.0.3.0/24` and `10.0.4.0/24`.
-- **Everything times out**: check that terminal 1 shows all four switches connected. Without the controller the switches forward nothing (fail-secure mode), which shows how the data plane depends on the control plane.
+- **`Unable to contact the remote controller`:** start POX first.
+- **Leftovers after a crash:** `sudo mn -c`
+- **No `link up` lines in the POX log:** `openflow.discovery` is missing from the POX command line.
+- **pingall hangs in the multipath lab:** `openflow.spanning_tree --no-flood --hold-down` is missing, so broadcasts loop.
+- **`correlate.py` says "no path reported":** the controller had not seen traffic yet when the snapshot was taken. Rerun, or increase the wait in `multipath.py`.
+- **`trace` says it needs a raw socket:** run it as root. Mininet already does.

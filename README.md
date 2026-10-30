@@ -63,7 +63,14 @@ When you change a CSS or JS file, bump the `?v=` number on its `<link>`/`<script
 
 ## SDN lab (Mininet + POX)
 
-[`sdn/`](sdn/README.md) builds a software-defined test network: Mininet hosts, routers and OpenFlow switches, with a POX controller (learning switch plus a firewall you can switch on and off). It plants a +60 ms link and a lossy link so the real traceroute and path analysis can be shown finding them. It needs Linux; the README covers running it in an Ubuntu VM on a Mac.
+[`sdn/`](sdn/README.md) is the socket-based UDP diagnostic application and its SDN testbed:
+
+- `netprobe.py` measures RTT, jitter, packet loss and hop-by-hop paths with its own UDP probes.
+- A POX controller discovers the topology over LLDP, routes traffic on chosen paths and reroutes around failed links.
+- Two Mininet labs: a multipath network that compares fast, slow and lossy paths and tests a link failure, and a routed network for traceroute.
+- `correlate.py` joins the measurements with the controller's topology.
+
+It needs Linux. The README maps every course deliverable to the code and covers running it in a VM on a Mac.
 
 ## Credits
 

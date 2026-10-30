@@ -1,0 +1,2 @@
+netprobe 10.0.4.2:9000  100 sent, 72 received, 28.0% loss, 0 reordered, 0 duplicates
+rtt min/avg/max/stdev = 74.76/78.49/80.55/1.38 ms   jitter = 1.26 ms

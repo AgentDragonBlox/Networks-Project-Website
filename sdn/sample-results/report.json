@@ -1,0 +1,224 @@
+{
+  "src": "10.0.0.1",
+  "dst": "10.0.0.2",
+  "runs": [
+    {
+      "name": "auto",
+      "policy": "auto",
+      "probe": "probe_auto.json",
+      "stats": {
+        "sent": 60,
+        "received": 60,
+        "loss_pct": 0.0,
+        "duplicates": 0,
+        "reordered": 0,
+        "min_ms": 12.433,
+        "avg_ms": 13.93,
+        "max_ms": 16.014,
+        "stdev_ms": 1.084,
+        "jitter_ms": 0.7,
+        "lost_seq": []
+      },
+      "interval": 0.05,
+      "path": [
+        "s1",
+        "s2",
+        "s4"
+      ],
+      "status": "OK",
+      "explained_by": {
+        "links": [],
+        "extra_ms": 0.84,
+        "extra_loss_pct": 0.0
+      }
+    },
+    {
+      "name": "path-A-via-s2",
+      "policy": "via 2",
+      "probe": "probe_path-A-via-s2.json",
+      "stats": {
+        "sent": 60,
+        "received": 60,
+        "loss_pct": 0.0,
+        "duplicates": 0,
+        "reordered": 0,
+        "min_ms": 12.311,
+        "avg_ms": 13.089,
+        "max_ms": 17.198,
+        "stdev_ms": 0.854,
+        "jitter_ms": 0.531,
+        "lost_seq": []
+      },
+      "interval": 0.05,
+      "path": [
+        "s1",
+        "s2",
+        "s4"
+      ],
+      "status": "OK",
+      "explained_by": null
+    },
+    {
+      "name": "path-B-via-s3",
+      "policy": "via 3",
+      "probe": "probe_path-B-via-s3.json",
+      "stats": {
+        "sent": 60,
+        "received": 60,
+        "loss_pct": 0.0,
+        "duplicates": 0,
+        "reordered": 0,
+        "min_ms": 84.318,
+        "avg_ms": 85.577,
+        "max_ms": 88.459,
+        "stdev_ms": 1.213,
+        "jitter_ms": 0.529,
+        "lost_seq": []
+      },
+      "interval": 0.05,
+      "path": [
+        "s1",
+        "s3",
+        "s4"
+      ],
+      "status": "SLOW",
+      "explained_by": {
+        "links": [
+          "s1-s3",
+          "s3-s4"
+        ],
+        "extra_ms": 72.49,
+        "extra_loss_pct": 0.0
+      }
+    },
+    {
+      "name": "path-C-via-s5",
+      "policy": "via 5",
+      "probe": "probe_path-C-via-s5.json",
+      "stats": {
+        "sent": 60,
+        "received": 50,
+        "loss_pct": 16.67,
+        "duplicates": 0,
+        "reordered": 0,
+        "min_ms": 12.33,
+        "avg_ms": 13.975,
+        "max_ms": 16.285,
+        "stdev_ms": 1.212,
+        "jitter_ms": 0.986,
+        "lost_seq": [
+          0,
+          5,
+          19,
+          25,
+          27,
+          39,
+          44,
+          45,
+          47,
+          50
+        ]
+      },
+      "interval": 0.05,
+      "path": [
+        "s1",
+        "s5",
+        "s4"
+      ],
+      "status": "LOSSY",
+      "explained_by": {
+        "links": [
+          "s1-s5",
+          "s4-s5"
+        ],
+        "extra_ms": 0.89,
+        "extra_loss_pct": 16.67
+      }
+    },
+    {
+      "name": "failover",
+      "policy": "auto",
+      "probe": "probe_failover.json",
+      "event": "link s2-s4 taken down 4 s into the run",
+      "stats": {
+        "sent": 300,
+        "received": 300,
+        "loss_pct": 0.0,
+        "duplicates": 0,
+        "reordered": 0,
+        "min_ms": 12.397,
+        "avg_ms": 66.746,
+        "max_ms": 90.499,
+        "stdev_ms": 31.791,
+        "jitter_ms": 0.924,
+        "lost_seq": []
+      },
+      "interval": 0.05,
+      "path": [
+        "s1",
+        "s3",
+        "s4"
+      ],
+      "status": "SLOW",
+      "explained_by": {
+        "links": [
+          "s1-s3",
+          "s3-s4"
+        ],
+        "extra_ms": 53.66,
+        "extra_loss_pct": 0.0
+      }
+    }
+  ],
+  "ranking": [
+    "path-A-via-s2",
+    "auto",
+    "path-B-via-s3",
+    "path-C-via-s5"
+  ],
+  "best": "path-A-via-s2",
+  "failure": {
+    "event": "link s2-s4 taken down 4 s into the run",
+    "failed_links": [
+      {
+        "link": "s2-s4",
+        "at": 1793332855.0153534,
+        "reason": "port s4.2 down"
+      }
+    ],
+    "failed_paths": [
+      {
+        "conversation": "10.0.0.1->10.0.0.2",
+        "path": [
+          "s1",
+          "s2",
+          "s4"
+        ],
+        "link": "s2-s4",
+        "at": 1793332855.0153534
+      },
+      {
+        "conversation": "10.0.0.2->10.0.0.1",
+        "path": [
+          "s4",
+          "s2",
+          "s1"
+        ],
+        "link": "s2-s4",
+        "at": 1793332855.0153534
+      }
+    ],
+    "path_before": [
+      "s1",
+      "s2",
+      "s4"
+    ],
+    "path_after": [
+      "s1",
+      "s3",
+      "s4"
+    ],
+    "outages": [],
+    "loss_pct": 0.0
+  }
+}

@@ -1,0 +1,38 @@
+NETPATH SDN CORRELATION REPORT
+==============================
+
+1. Discovered SDN topology (from the POX controller)
+   switches: s1, s2, s3, s4, s5
+   links:    s1-s2, s1-s3, s1-s5, s2-s4, s3-s4, s4-s5
+   host 10.0.0.1   on s1 port 1
+   host 10.0.0.2   on s4 port 1
+   alternative paths 10.0.0.1 -> 10.0.0.2: 3
+     s1 -> s2 -> s4
+     s1 -> s3 -> s4
+     s1 -> s5 -> s4
+
+2. Measurements per path (netprobe, UDP)
+   run            path                                    avg ms  jitter  loss %  status
+   auto           10.0.0.1 -> s1 -> s2 -> s4 -> 10.0.0.2   13.93    0.70     0.0  OK
+   path-A-via-s2  10.0.0.1 -> s1 -> s2 -> s4 -> 10.0.0.2   13.09    0.53     0.0  OK
+   path-B-via-s3  10.0.0.1 -> s1 -> s3 -> s4 -> 10.0.0.2   85.58    0.53     0.0  SLOW
+   path-C-via-s5  10.0.0.1 -> s1 -> s5 -> s4 -> 10.0.0.2   13.97    0.99    16.7  LOSSY
+   failover       10.0.0.1 -> s1 -> s3 -> s4 -> 10.0.0.2   66.75    0.92     0.0  SLOW
+
+3. Correlation: which links explain the differences
+   baseline: path-A-via-s2 via 10.0.0.1 -> s1 -> s2 -> s4 -> 10.0.0.2
+   path-B-via-s3: +72.5 ms vs baseline, from links s1-s3, s3-s4
+   path-C-via-s5: +16.7% loss vs baseline, from links s1-s5, s4-s5
+
+4. Failed paths
+   event: link s2-s4 taken down 4 s into the run
+   controller saw link s2-s4 fail (port s4.2 down)
+   failed path for 10.0.0.1->10.0.0.2: s1 -> s2 -> s4 (used s2-s4)
+   failed path for 10.0.0.2->10.0.0.1: s4 -> s2 -> s1 (used s2-s4)
+   path before: 10.0.0.1 -> s1 -> s2 -> s4 -> 10.0.0.2
+   path after:  10.0.0.1 -> s1 -> s3 -> s4 -> 10.0.0.2
+   no probes lost: rerouting was hitless
+
+5. Recommendation
+   best path: 10.0.0.1 -> s1 -> s2 -> s4 -> 10.0.0.2 (13.09 ms, 0.0% loss)
+   ranking (delay + 10 ms per 1% loss): path-A-via-s2, auto, path-B-via-s3, path-C-via-s5

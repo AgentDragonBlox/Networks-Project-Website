@@ -148,3 +148,78 @@ The outputs are saved in `results/`. Expect hops r1, r2, r3 and h2, a jump of ab
 - **pingall hangs in the multipath lab:** `openflow.spanning_tree --no-flood --hold-down` is missing, so broadcasts loop.
 - **`correlate.py` says "no path reported":** the controller had not seen traffic yet when the snapshot was taken. Rerun, or increase the wait in `multipath.py`.
 - **`trace` says it needs a raw socket:** run it as root. Mininet already does.
+
+
+## Execution timeline (a full run, start to finish)
+
+Tested on Ubuntu with Mininet, Open vSwitch and POX 0.7.0. Everything runs inside Linux, in two terminals.
+
+### 0. One-time setup
+
+```bash
+sudo apt update && sudo apt install -y mininet openvswitch-switch traceroute git
+cd ~
+git clone https://github.com/AgentDragonBlox/Networks-Project-Website
+git clone https://github.com/noxrepo/pox
+git clone https://github.com/AtharvChoudhary65/network-diagnostics-and-path-analysis-tool
+cp ~/Networks-Project-Website/sdn/netpath_controller.py ~/Networks-Project-Website/sdn/netpath_graph.py ~/pox/ext/
+```
+
+### 1. Multipath lab
+
+**Terminal 1** (leave running):
+
+```bash
+cd ~/pox && ./pox.py log.level --INFO openflow.discovery openflow.spanning_tree --no-flood --hold-down netpath_controller
+```
+
+Expected: `NetPath controller ready, policy 'auto'` and `POX 0.7.0 (gar) is up.`
+
+**Terminal 2** (after POX is up):
+
+```bash
+cd ~/Networks-Project-Website/sdn && sudo python3 multipath.py --auto
+```
+
+About 1.5 minutes. It measures auto and paths A, B and C, takes link s2-s4 down, then prints the correlation report (saved as `results/report.txt`). Type `exit` at the `mininet>` prompt when it finishes.
+
+### 2. Routed lab (traceroute and path analysis)
+
+Terminal 2:
+
+```bash
+sudo mn -c
+```
+
+Terminal 1: press Ctrl+C, then restart POX **without spanning tree**:
+
+```bash
+cd ~/pox && ./pox.py log.level --INFO openflow.discovery netpath_controller
+```
+
+Terminal 2:
+
+```bash
+cd ~/Networks-Project-Website/sdn && sudo python3 topology.py --auto
+```
+
+The routed lab has no switch-to-switch links, so with `openflow.spanning_tree --hold-down` flooding never turns on and every probe is lost (30 silent hops, 100% loss). Use plain `openflow.discovery` for this lab. When done: `exit`, then `sudo mn -c`, then Ctrl+C in terminal 1.
+
+### 3. Results
+
+Outputs are written to `sdn/results/` (git-ignored). Copies are in [`sample-results/`](sample-results/):
+
+| File | From |
+|---|---|
+| `report.txt`, `report.json` | multipath lab: topology, per-path measurements, correlation, failed paths, best path |
+| `netprobe_trace.txt` | routed lab: our UDP traceroute plus path analysis |
+| `netprobe_probe.txt` | routed lab: 100 UDP probes (RTT, jitter, loss) |
+| `traceroute.txt` | routed lab: system traceroute |
+| `path_analysis.txt` | routed lab: the original project's `path_analysis` |
+
+Observed: path A is best (about 13 ms, 0% loss), path B about 85 ms, path C about 16.7% loss. When link s2-s4 fails, traffic moves to s1-s3-s4. In the routed lab there is a +65 ms jump at hop 3 and about 28% loss on the probe run.
+
+### Notes
+
+- POX warns that Python 3.12 is unsupported and prints `ERROR:packet:(dns) parsing ...` lines. These are harmless.
+- `Unable to contact the remote controller`: start POX first.

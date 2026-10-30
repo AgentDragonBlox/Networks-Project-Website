@@ -1,0 +1,17 @@
+Path analysis for 10.0.4.2
+Hop  IP                   Avg ms   Jitter  Loss %    Delta
+  1  10.0.1.1                4.1      0.0       0        -
+  2  10.0.2.2                8.1      0.0       0     +4.0
+  3  10.0.3.2               73.1      0.0       0    +65.0
+  4  *                         -        -     100        -
+  5  *                         -        -     100        -
+  6  *                         -        -     100        -
+  7  *                         -        -     100        -
+  8  *                         -        -     100        -
+  9  10.0.4.2               80.6      0.0      67     +7.5
+
+Total hops: 9 (5 silent)
+End-to-end RTT (last responding hop): 80.6 ms
+Biggest latency jump: hop 3 (10.0.3.2) +65.0 ms
+Destination reached: yes
+Possible bottlenecks: hop 3, hop 9

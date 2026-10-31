@@ -80,3 +80,4 @@ It needs Linux. The README maps every course deliverable to the code and covers 
 ## Credits
 
 The diagnostics tool and its Python code come from [AtharvChoudhary65/network-diagnostics-and-path-analysis-tool](https://github.com/AtharvChoudhary65/network-diagnostics-and-path-analysis-tool). This site is an interactive companion to it. Fonts are [Geist and Geist Mono](https://vercel.com/font), loaded from Google Fonts.
+Team: AgentDragonBlox, Atharv Choudhary, Andrew (DNS resolution and UDP probing).
